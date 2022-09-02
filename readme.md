@@ -27,9 +27,9 @@ Levels and original game - Brandon Sterner
 
 Liscence:
 
-    All code not related to the assets is released under the WTFPL.
+All code not related to the assets is released under the WTFPL.
 
-    All code related to the assets, as well as all assets, subject to the liscence.txt found in the gfx subdirectory
+All code related to the assets, as well as all assets, subject to the liscence.txt found in the gfx subdirectory
 
 I'm not a lawyer so have no idea how any of this actually works. Just don't steal Aleksandr's art, please.
 
