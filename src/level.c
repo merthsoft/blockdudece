@@ -136,4 +136,5 @@ void levels_load()
 void levels_free()
 {
     free(levels);
+	free(move_count_list);
 }

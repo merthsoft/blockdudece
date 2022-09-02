@@ -184,6 +184,8 @@ int main(void)
     if (tilemap.map)
         free(tilemap.map);
 
+    free(palette);
+
     levels_free();
 
     gfx_End();

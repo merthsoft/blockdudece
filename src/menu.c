@@ -23,6 +23,8 @@ void menu_load(gfx_tilemap_t* tilemap)
     tilemap->width = tilemap->draw_width = level->width;
     tilemap->height = tilemap->draw_height = level->height;
     
+    if (tilemap->map)
+        free(tilemap->map);
     tilemap->map = malloc(level->width * level->height);
     memcpy(tilemap->map, level->map_pointer, level->width * level->height);
     
