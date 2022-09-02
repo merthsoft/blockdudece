@@ -437,9 +437,17 @@ void game_draw(gfx_tilemap_t *tilemap)
     snprintf(buffer, 50, "Level %i - Moves %u", current_level + 1, move_count);
     gfx_PrintStringXY(buffer, 0, 0);
 
-    gfx_ScaledSprite_NoClip(direction ? dude_right : dude, player_draw_x(tilemap->x_loc), player_draw_y(tilemap->y_loc), 2, 2);
+    int draw_x = player_draw_x(tilemap->x_loc);
+    int draw_y = player_draw_y(tilemap->y_loc);
+
+    if (draw_x >= 0 && draw_y >= 16 && draw_x < GFX_LCD_WIDTH && draw_y < GFX_LCD_HEIGHT)
+        gfx_ScaledSprite_NoClip(direction ? dude_right : dude, draw_x, draw_y, 2, 2);
     if (holding_block)
-        gfx_ScaledSprite_NoClip(block, player_draw_x(tilemap->x_loc), player_draw_y(tilemap->y_loc) - 16, 2, 2);
+    {
+        draw_y -= 16;
+        if (draw_x >= 0 && draw_y >= 16 && draw_x < GFX_LCD_WIDTH && draw_y < GFX_LCD_HEIGHT)
+            gfx_ScaledSprite_NoClip(block, draw_x, draw_y, 2, 2);
+    }
 
     if (camera_mode)
     {
