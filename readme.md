@@ -24,6 +24,8 @@ Graphics - Aleksandr Makarov (https://www.patreon.com/iknowkingrabbit/)
 
 Levels and original game - Brandon Sterner
 
+Beta Testers - Christopher Mitchell and Sophia Curry
+
 
 Liscence:
 
