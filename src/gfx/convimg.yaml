@@ -1,0 +1,32 @@
+palettes:
+  - name: global_palette
+    fixed-entries:
+      - color: {index: 0, r: 32, g: 32, b: 32}
+    images: automatic
+
+converts:
+  - name: sprites
+    palette: global_palette
+    transparent-color-index: 0
+    images:
+      - dude.png
+      - block.png
+      - arrow_left.png
+      - arrow_up.png
+  - name: tileset
+    palette: global_palette
+    tilesets:
+      tile-width: 16
+      tile-height: 16
+      images:
+        - tiles.png
+
+outputs:
+  - type: c
+    include-file: gfx.h
+    palettes:
+      - global_palette
+    converts:
+      - sprites
+      - tileset
+
