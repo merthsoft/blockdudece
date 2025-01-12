@@ -9,7 +9,7 @@
 int choice = 0;
 
 int copywrite_shimmer = 0;
-const char copywrite[] = "2022 Merthsoft Creations";
+const char copywrite[] = "2025 Merthsoft Creations";
 
 const char *chars = "\0\0\0\0\0\0\0\0\0\0\"WRMH\0\0?[VQLG\0\0:ZUPKFC\0 YTOJEB\0\0XSNIDA\0\0\0\0\0\0\0\0";
 const char *cheat = "SOPHIA";

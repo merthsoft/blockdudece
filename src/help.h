@@ -9,10 +9,10 @@ bool help_draw()
     gfx_ZeroScreen();
     gfx_SetTextFGColor(8);
     gfx_SetTextScale(3, 3);
-    gfx_PrintStringXY("Block Dude v 0.3", 2, 2);
+    gfx_PrintStringXY("Block Dude v 1.2", 2, 2);
     gfx_SetTextScale(1, 1);
     gfx_SetTextFGColor(5);
-    gfx_PrintStringXY("Merthsoft Creations 2022", 2, 26);
+    gfx_PrintStringXY("Merthsoft Creations 2025", 2, 26);
 
     gfx_SetTextScale(1, 2);
     gfx_PrintStringXY("The goal of this game is to get from the start", 2, 40);
