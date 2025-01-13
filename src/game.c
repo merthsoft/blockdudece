@@ -169,6 +169,12 @@ void level_select_draw(gfx_tilemap_t *tilemap, camera* camera)
         gfx_Tilemap(tilemap, camera->x, camera->y);
         gfx_SetTextFGColor(8);
         gfx_SetTextScale(1, 1);
+    
+        uint24_t draw_x = player_draw_x(tilemap->x_loc);
+        uint8_t draw_y = player_draw_y(tilemap->y_loc);
+    
+        if (draw_x >= 0 && draw_y >= 16 && draw_x < GFX_LCD_WIDTH && draw_y < GFX_LCD_HEIGHT)
+            gfx_ScaledSprite_NoClip(direction ? dude_right : dude, draw_x, draw_y, 2, 2);
 
         int w = gfx_GetStringWidth("PRESS 2nd TO START");
         gfx_PrintStringXY("PRESS 2nd TO START", (GFX_LCD_WIDTH - w) / 2, 17);
@@ -193,12 +199,6 @@ void level_select_draw(gfx_tilemap_t *tilemap, camera* camera)
     snprintf(buffer, 50, "Level %i - Best %u", current_level + 1, move_count);
     w = gfx_GetStringWidth(buffer);
     gfx_PrintStringXY(buffer, (GFX_LCD_WIDTH - w) / 2, 8);
-    
-    uint24_t draw_x = player_draw_x(tilemap->x_loc);
-    uint8_t draw_y = player_draw_y(tilemap->y_loc);
-
-    if (draw_x >= 0 && draw_y >= 16 && draw_x < GFX_LCD_WIDTH && draw_y < GFX_LCD_HEIGHT)
-        gfx_ScaledSprite_NoClip(direction ? dude_right : dude, draw_x, draw_y, 2, 2);
 }
 
 bool handle_player_movement(sk_key_t key, gfx_tilemap_t *tilemap, camera* camera) {
