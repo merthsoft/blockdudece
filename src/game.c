@@ -30,6 +30,7 @@ int level_width = 0;
 int level_height = 0;
 bool direction = false;
 bool holding_block = false;
+bool no_clip = false;
 uint16_t move_count = 0;
 int max_level = 0;
 
@@ -46,8 +47,10 @@ uint8_t level_skip = 0;
 
 char buffer[50];
 
-const uint8_t win_cheat[] = { sk_Up, sk_Up, sk_Down, sk_Down, sk_Left, sk_Right, sk_Left, sk_Right, sk_2nd, sk_Alpha };
-uint8_t win_cheat_index = 0;
+#define win_cheat sk_Yequ
+#define noclip_cheat sk_Window
+const uint8_t cheat_prefix[] = { sk_Up, sk_Up, sk_Down, sk_Down, sk_Left, sk_Right, sk_Left, sk_Right, sk_2nd, sk_Alpha };
+uint8_t debug_mode_index = 0;
 #define CHEAT_LENGTH 10
 
 void camera_reset(camera* camera, gfx_tilemap_t *tilemap) {
@@ -91,7 +94,7 @@ void choose_level(int level_number, gfx_tilemap_t *tilemap, camera* camera)
     move_count = 0;
     level_skip = 0;
     reset = false;
-    win_cheat_index = 0;
+    debug_mode_index = 0;
 }
 
 void level_select_start(gfx_tilemap_t *tilemap, camera* camera)
@@ -152,6 +155,9 @@ enum state_transition level_select_update(sk_key_t key, gfx_tilemap_t *tilemap, 
 
 bool blocked_at(gfx_tilemap_t *tilemap, int x, int y)
 {
+    if (no_clip)
+        return false;
+
     int cell = tilemap->map[y * level_width + x];
     return cell == BLOCK || cell == WALL;
 }
@@ -228,47 +234,54 @@ bool handle_player_movement(sk_key_t key, gfx_tilemap_t *tilemap, camera* camera
             direction = 1;
             break;
         case sk_Up:
-            player_x += direction_offset;
-            if (blocked_at(tilemap, player_x, player_y)
-                && !blocked_at(tilemap, player_x - direction_offset, player_y - 1))
-                    player_y--;
+            if (!no_clip) {
+                player_x += direction_offset;
+                if (blocked_at(tilemap, player_x, player_y)
+                    && !blocked_at(tilemap, player_x - direction_offset, player_y - 1))
+                        player_y--;
+            } else {
+                player_y--;
+            }
             break;
         case sk_2nd:
         case sk_Down:
-            if (holding_block)
-            {
-                int block_x = 0;
-                int block_y = 0;
-
-                if (!blocked_at(tilemap, player_x + direction_offset, player_y - 1))
-                {
-                    block_y = player_y - 1;
-                    block_x = player_x + direction_offset;
-                    holding_block = false;
+            if (no_clip) {
+                if (key == sk_Down) {
+                    player_y++;
                 }
+            } else {
+                if (holding_block) {
+                    int block_x = 0;
+                    int block_y = 0;
 
-                if (!holding_block)
-                {
-                    while (!blocked_at(tilemap, block_x, block_y + 1))
-                        block_y++;
+                    if (!blocked_at(tilemap, player_x + direction_offset, player_y - 1))
+                    {
+                        block_y = player_y - 1;
+                        block_x = player_x + direction_offset;
+                        holding_block = false;
+                    }
 
-                    tilemap->map[block_y * level_width + block_x] = BLOCK;
-                    last_move = drop;
-                    undo_x = block_x;
-                    undo_y = block_y;
-                }
-            }
-            else
-            {
-                if (tilemap->map[player_y * level_width + player_x + direction_offset] == BLOCK 
-                    && !blocked_at(tilemap, player_x + direction_offset, player_y - 1)
-                    && !blocked_at(tilemap, player_x, player_y - 1))
-                {
-                    tilemap->map[player_y * level_width + player_x + direction_offset] = EMPTY;
-                    holding_block = true;
-                    last_move = none;
-                    undo_x = player_x + direction_offset;
-                    undo_y = player_y;
+                    if (!holding_block)
+                    {
+                        while (!blocked_at(tilemap, block_x, block_y + 1))
+                            block_y++;
+
+                        tilemap->map[block_y * level_width + block_x] = BLOCK;
+                        last_move = drop;
+                        undo_x = block_x;
+                        undo_y = block_y;
+                    }
+                } else {
+                    if (tilemap->map[player_y * level_width + player_x + direction_offset] == BLOCK 
+                        && !blocked_at(tilemap, player_x + direction_offset, player_y - 1)
+                        && !blocked_at(tilemap, player_x, player_y - 1))
+                    {
+                        tilemap->map[player_y * level_width + player_x + direction_offset] = EMPTY;
+                        holding_block = true;
+                        last_move = none;
+                        undo_x = player_x + direction_offset;
+                        undo_y = player_y;
+                    }
                 }
             }
             break;
@@ -299,7 +312,7 @@ bool handle_player_movement(sk_key_t key, gfx_tilemap_t *tilemap, camera* camera
         player_y = old_y;
     }
 
-    if (blocked_at(tilemap, player_x, player_y))
+    if (!no_clip && blocked_at(tilemap, player_x, player_y))
     {
         player_y = old_y;
         if (blocked_at(tilemap, player_x, player_y))
@@ -330,8 +343,12 @@ enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap, camera* 
         if (key)
         {
             new_best = false;
-            choose_level(current_level + level_skip, tilemap, camera);
-            return st_fade_out;
+            if (current_level + level_skip < NUM_BUILTIN_LEVELS)
+            {
+                choose_level(current_level + level_skip, tilemap, camera);
+                return st_fade_out;
+            } else 
+                return st_win;
         }
         return st_none;
     }
@@ -349,11 +366,13 @@ enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap, camera* 
     }
     camera_update(camera, key, player_x * 16, player_y * 16);
     
-    int floor = tilemap->map[(player_y + 1) * level_width + player_x];
-    while ((floor == EMPTY || floor == DOOR) && player_y < level_height)
-    {
-        player_y++;
-        floor = tilemap->map[(player_y + 1) * level_width + player_x];
+    if (!no_clip) {
+        int floor = tilemap->map[(player_y + 1) * level_width + player_x];
+        while ((floor == EMPTY || floor == DOOR) && player_y < level_height)
+        {
+            player_y++;
+            floor = tilemap->map[(player_y + 1) * level_width + player_x];
+        }
     }
 
     if (!level_skip && tilemap->map[player_y * level_width + player_x] == DOOR)
@@ -370,11 +389,21 @@ enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap, camera* 
 
     if (key != 0)
     {
-        win_cheat_index = win_cheat[win_cheat_index] == key ? win_cheat_index + 1 : 0;
-        if (win_cheat_index == CHEAT_LENGTH)
+        if (debug_mode_index == CHEAT_LENGTH)
         {
-            move_count_list[current_level] = UINT16_MAX;
-            level_skip = true;
+            switch (key) {
+                case win_cheat:
+                    move_count_list[current_level] = UINT16_MAX;
+                    level_skip = true;
+                    break;
+                case noclip_cheat:
+                    no_clip = !no_clip;
+                    holding_block = false;
+                    break;
+            }
+            debug_mode_index = 0;
+        } else {
+            debug_mode_index = cheat_prefix[debug_mode_index] == key ? debug_mode_index + 1 : 0;
         }
     }
 
@@ -403,6 +432,9 @@ void game_draw(gfx_tilemap_t *tilemap, camera* camera)
     snprintf(buffer, 50, "Level %i - Moves %u", current_level + 1, move_count);
     gfx_PrintStringXY(buffer, 0, 0);
 
+    if (no_clip)
+        gfx_PrintChar('*');
+
     int draw_x = player_draw_x(tilemap->x_loc);
     int draw_y = player_draw_y(tilemap->y_loc);
 
@@ -428,10 +460,12 @@ void game_draw(gfx_tilemap_t *tilemap, camera* camera)
 
     if (new_best)
     {
+        gfx_SetColor(0);
         snprintf(buffer, 50, "NEW BEST!");
         gfx_SetTextFGColor(8);
         gfx_SetTextScale(3, 3);
         int w = gfx_GetStringWidth(buffer);
+        gfx_FillRectangle_NoClip((GFX_LCD_WIDTH - w) / 2 - 2, (GFX_LCD_HEIGHT - 24) / 2 - 2, w + 4, 38);
         gfx_PrintStringXY(buffer, (GFX_LCD_WIDTH - w) / 2, (GFX_LCD_HEIGHT - 24) / 2);
         gfx_SetTextFGColor(5);
         gfx_SetTextScale(1, 1);
