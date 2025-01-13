@@ -1,4 +1,4 @@
-Block Dude CE v1.2
+Block Dude CE v1.3
 Merthsoft Creations - January 2025
 
 Based on the classic PuzzPack favorite by Brandon Sterner, Block Dude is a simple yet challenging puzzle game where you navigate levels, relocating boxes to find your way to the exit. Play through 11 levels and try to minimize your move count!
