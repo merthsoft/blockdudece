@@ -88,10 +88,10 @@ int main(void)
                 state_transition = main_menu_update(key);
                 break;
             case gs_level_select:
-                state_transition = level_select_update(key, &tilemap);
+                state_transition = level_select_update(key, &tilemap, &main_camera);
                 break;
             case gs_playing:
-                state_transition = game_update(key, &tilemap);
+                state_transition = game_update(key, &tilemap, &main_camera);
                 break;
             case gs_help:
                 state_transition = help_update(key);
@@ -132,7 +132,7 @@ int main(void)
                 fade_flag = true;
                 game_state = (enum game_state)state_transition;
                 if (game_state == gs_level_select)
-                    level_select_start(&tilemap);
+                    level_select_start(&tilemap, &main_camera);
                 break;
         }
 
@@ -147,10 +147,10 @@ int main(void)
                 main_menu_draw(&tilemap);
                 break;
             case gs_level_select:
-                level_select_draw(&tilemap);
+                level_select_draw(&tilemap, &main_camera);
                 break;
             case gs_playing:
-                game_draw(&tilemap);
+                game_draw(&tilemap, &main_camera);
                 break;
             case gs_help:
                 help_draw();

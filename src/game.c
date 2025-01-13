@@ -9,6 +9,7 @@
 #include "game.h"
 #include "level.h"
 #include "gfx/gfx.h"
+#include "camera.h"
 
 #define EMPTY 0
 #define WALL 1
@@ -29,15 +30,9 @@ int level_width = 0;
 int level_height = 0;
 bool direction = false;
 bool holding_block = false;
-int camera_x = 0;
-int camera_y = 0;
 uint16_t move_count = 0;
 int max_level = 0;
 
-int max_right = 0;
-int max_down = 0;
-
-bool camera_mode = false;
 enum last_move last_move;
 int undo_x = 0;
 int undo_y = 0;
@@ -46,8 +41,8 @@ bool new_best = false;
 bool reset = false;
 uint8_t level_skip = 0;
 
-#define player_draw_x(x_loc) (player_x * 16 + x_loc - camera_x)
-#define player_draw_y(y_loc) (player_y * 16 + y_loc - camera_y)
+#define player_draw_x(x_loc) (player_x * 16 + x_loc - camera->x)
+#define player_draw_y(y_loc) (player_y * 16 + y_loc - camera->y)
 
 char buffer[50];
 
@@ -55,7 +50,20 @@ const uint8_t win_cheat[] = { sk_Up, sk_Up, sk_Down, sk_Down, sk_Left, sk_Right,
 uint8_t win_cheat_index = 0;
 #define CHEAT_LENGTH 10
 
-void choose_level(int level_number, gfx_tilemap_t *tilemap)
+void camera_reset(camera* camera, gfx_tilemap_t *tilemap) {
+    camera->bounary_mode = cbm_strict;
+    camera->move_mode = cmm_follow;
+    camera->x = camera->min_x = 0;
+    camera->y = camera->min_y = 0;
+    camera->step_x =  tilemap->tile_height;
+    camera->step_y = tilemap->tile_width;
+    camera->viewport_width = GFX_LCD_WIDTH - tilemap->x_loc;
+    camera->viewport_height = GFX_LCD_HEIGHT - tilemap->y_loc;
+    camera->max_x = tilemap->width * tilemap->tile_width - camera->viewport_width;
+    camera->max_y = tilemap->height * tilemap->tile_height - camera->viewport_height;
+}
+
+void choose_level(int level_number, gfx_tilemap_t *tilemap, camera* camera)
 {
     struct level *level = levels[level_number];
     player_x = level->start_x;
@@ -70,16 +78,12 @@ void choose_level(int level_number, gfx_tilemap_t *tilemap)
     tilemap->x_loc = 0;
     tilemap->y_loc = 16;
 
-    camera_x = 0;
-    camera_y = 0;
-
     int total_draw_height = level_height * 16;
 
     if (total_draw_height < GFX_LCD_HEIGHT - 16)
         tilemap->y_loc = GFX_LCD_HEIGHT - total_draw_height;
-
-    max_right = level_width * 16 - GFX_LCD_WIDTH;
-    max_down = level_height * 16 - GFX_LCD_HEIGHT + 16;
+    camera_reset(camera, tilemap);
+    camera_update(camera, 0, player_x * 16, player_y * 16);
 
     direction = false;
     holding_block = false;
@@ -90,7 +94,7 @@ void choose_level(int level_number, gfx_tilemap_t *tilemap)
     win_cheat_index = 0;
 }
 
-void level_select_start(gfx_tilemap_t *tilemap)
+void level_select_start(gfx_tilemap_t *tilemap, camera* camera)
 {
     for (max_level = 0; max_level < NUM_BUILTIN_LEVELS; max_level++)
     {
@@ -100,31 +104,31 @@ void level_select_start(gfx_tilemap_t *tilemap)
     if (max_level >= NUM_BUILTIN_LEVELS)
         max_level = NUM_BUILTIN_LEVELS - 1;
 
-    choose_level(max_level, tilemap);
+    choose_level(max_level, tilemap, camera);
     move_count = move_count_list[current_level];
 }
 
-enum state_transition level_select_update(sk_key_t key, gfx_tilemap_t *tilemap)
+enum state_transition level_select_update(sk_key_t key, gfx_tilemap_t *tilemap, camera* camera)
 {
     int level_skip = 0;
     bool exit = false;
 
     switch (key)
     {
-    case sk_Del:
-        exit = true;
-        break;
-    case sk_Left:
-        level_skip = -1;
-        break;
-    case sk_Right:
-        level_skip = 1;
-        break;
-    case sk_2nd:
-    case sk_Enter:
-        if (current_level <= max_level)
-            return st_playing;
-        break;
+        case sk_Del:
+            exit = true;
+            break;
+        case sk_Left:
+            level_skip = -1;
+            break;
+        case sk_Right:
+            level_skip = 1;
+            break;
+        case sk_2nd:
+        case sk_Enter:
+            if (current_level <= max_level)
+                return st_playing;
+            break;
     }
 
     if (level_skip)
@@ -135,11 +139,13 @@ enum state_transition level_select_update(sk_key_t key, gfx_tilemap_t *tilemap)
         else if (current_level > 10)
             current_level = 10;
 
-        choose_level(current_level, tilemap);
+        choose_level(current_level, tilemap, camera);
         move_count = move_count_list[current_level];
 
         return st_fade_out;
     }
+
+    camera_update(camera, key, player_x * 16, player_y * 16);
 
     return exit ? st_back : st_none;
 }
@@ -150,36 +156,11 @@ bool blocked_at(gfx_tilemap_t *tilemap, int x, int y)
     return cell == BLOCK || cell == WALL;
 }
 
-void fix_camera(gfx_tilemap_t *tilemap)
+void level_select_draw(gfx_tilemap_t *tilemap, camera* camera)
 {
-    while (camera_x < max_right && player_draw_x(tilemap->x_loc) > GFX_LCD_WIDTH / 2)
-    {
-        camera_x += 16;
-    }
-
-    while (camera_y < max_down && player_draw_y(tilemap->y_loc) > GFX_LCD_HEIGHT / 2)
-    {
-        camera_y += 16;
-    }
-
-    while (camera_x > 0 && player_draw_x(tilemap->x_loc) < GFX_LCD_WIDTH / 2)
-    {
-        camera_x -= 16;
-    }
-
-    while (camera_y > 0 && player_draw_y(tilemap->y_loc) < GFX_LCD_HEIGHT / 2)
-    {
-        camera_y -= 16;
-    }
-}
-
-void level_select_draw(gfx_tilemap_t *tilemap)
-{
-    fix_camera(tilemap);
-
     if (current_level <= max_level)
     {
-        gfx_Tilemap(tilemap, camera_x, camera_y);
+        gfx_Tilemap(tilemap, camera->x, camera->y);
         gfx_SetTextFGColor(8);
         gfx_SetTextScale(1, 1);
 
@@ -206,66 +187,26 @@ void level_select_draw(gfx_tilemap_t *tilemap)
     snprintf(buffer, 50, "Level %i - Best %u", current_level + 1, move_count);
     w = gfx_GetStringWidth(buffer);
     gfx_PrintStringXY(buffer, (GFX_LCD_WIDTH - w) / 2, 8);
+    
+    uint24_t draw_x = player_draw_x(tilemap->x_loc);
+    uint8_t draw_y = player_draw_y(tilemap->y_loc);
+
+    if (draw_x >= 0 && draw_y >= 16 && draw_x < GFX_LCD_WIDTH && draw_y < GFX_LCD_HEIGHT)
+        gfx_ScaledSprite_NoClip(direction ? dude_right : dude, draw_x, draw_y, 2, 2);
 }
 
-enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap)
-{
-    if (new_best)
-    {
-        if (key)
-        {
-            new_best = false;
-            choose_level(current_level + level_skip, tilemap);
-            return st_fade_out;
-        }
-        return st_none;
-    }
-
+bool handle_player_movement(sk_key_t key, gfx_tilemap_t *tilemap, camera* camera) {
     int old_x = player_x;
     int old_y = player_y;
     int direction_offset = direction == 0 ? -1 : 1;
-    bool exit = false;
-
-    level_skip = 0;
-    reset = false;
-
-    // lol this sucks
-    if (camera_mode)
+    
+    switch (key)
     {
-        switch (key)
-        {
         case sk_Mode:
-        case sk_Del:
-            camera_mode = false;
-            break;
-        case sk_Left:
-            if (camera_x > 0)
-                camera_x -= 16;
-            break;
-        case sk_Right:
-            if (camera_x < max_right)
-                camera_x += 16;
-            break;
-        case sk_Up:
-            if (camera_y > 0)
-                camera_y -= 16;
-            break;
-        case sk_Down:
-            if (camera_y < max_down)
-                camera_y += 16;
-            break;
-        }
-    }
-    else
-    {
-        switch (key)
-        {
-        case sk_Mode:
-            camera_mode = true;
+            camera->move_mode = cmm_pan;
             break;
         case sk_Del:
-            exit = true;
-            break;
+            return true;
         case sk_Left:
             if (direction == 0)
             {
@@ -351,17 +292,6 @@ enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap)
             last_move = none;
             break;
         }
-    }
-
-    if (key != 0)
-    {
-        win_cheat_index = win_cheat[win_cheat_index] == key ? win_cheat_index + 1 : 0;
-        if (win_cheat_index == CHEAT_LENGTH)
-        {
-            move_count_list[current_level] = UINT16_MAX;
-            level_skip = true;
-        }
-    }
 
     if (player_x < 0 || player_x >= level_width || player_y < 0 || player_y >= level_height)
     {
@@ -390,6 +320,35 @@ enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap)
         last_move = move;
     }
 
+    return false;
+}
+
+enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap, camera* camera)
+{
+    if (new_best)
+    {
+        if (key)
+        {
+            new_best = false;
+            choose_level(current_level + level_skip, tilemap, camera);
+            return st_fade_out;
+        }
+        return st_none;
+    }
+
+    level_skip = 0;
+    reset = false;
+    
+    bool exit = false;
+    if (camera->move_mode == cmm_pan)
+    {
+        if (key == sk_Mode || key == sk_Del)
+            camera->move_mode = cmm_follow;
+    } else {
+        exit = handle_player_movement(key, tilemap, camera);
+    }
+    camera_update(camera, key, player_x * 16, player_y * 16);
+    
     int floor = tilemap->map[(player_y + 1) * level_width + player_x];
     while ((floor == EMPTY || floor == DOOR) && player_y < level_height)
     {
@@ -409,6 +368,16 @@ enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap)
         }
     }
 
+    if (key != 0)
+    {
+        win_cheat_index = win_cheat[win_cheat_index] == key ? win_cheat_index + 1 : 0;
+        if (win_cheat_index == CHEAT_LENGTH)
+        {
+            move_count_list[current_level] = UINT16_MAX;
+            level_skip = true;
+        }
+    }
+
     if (exit)
         return st_back;
     
@@ -416,7 +385,7 @@ enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap)
     {
         if (current_level + level_skip < NUM_BUILTIN_LEVELS)
         {
-            choose_level(current_level + level_skip, tilemap);
+            choose_level(current_level + level_skip, tilemap, camera);
             return st_fade_out;
         } else 
             return st_win;
@@ -425,12 +394,9 @@ enum state_transition game_update(sk_key_t key, gfx_tilemap_t *tilemap)
     return st_none;
 }
 
-void game_draw(gfx_tilemap_t *tilemap)
+void game_draw(gfx_tilemap_t *tilemap, camera* camera)
 {
-    if (!camera_mode)
-        fix_camera(tilemap);
-
-    gfx_Tilemap(tilemap, camera_x, camera_y);
+    gfx_Tilemap(tilemap, camera->x, camera->y);
 
     gfx_SetTextFGColor(8);
     gfx_SetTextScale(1, 2);
@@ -449,7 +415,7 @@ void game_draw(gfx_tilemap_t *tilemap)
             gfx_ScaledSprite_NoClip(block, draw_x, draw_y, 2, 2);
     }
 
-    if (camera_mode)
+    if (camera->move_mode == cmm_pan)
     {
         int half_x = (GFX_LCD_WIDTH - 10) / 2;
         int half_y = (GFX_LCD_HEIGHT - 18) / 2 - 8;
